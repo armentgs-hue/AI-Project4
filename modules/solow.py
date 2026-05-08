@@ -10,9 +10,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from functools import lru_cache
-
-st.set_option('deprecation.showPyplotGlobalUse', False)
 
 @st.cache_data
 def steady_state_k(s, delta, n, g, alpha):
@@ -28,12 +25,7 @@ def steady_state_k(s, delta, n, g, alpha):
 def simulate_solow(s, delta, n, g, alpha, k0, T=200):
     """
     Simulate Solow transition in per-effective-worker terms.
-    Uses discrete-time law of motion:
-    k_{t+1} = (1/(1+g)) * [ (1 - delta) * k_t + s * f(k_t) ] / (1 + n)
-    But more standard discrete form:
-    k_{t+1} = ( (1 - delta) * k_t + s * k_t**alpha ) / (1 + n) / (1 + g)
-    We'll implement the canonical per-effective-worker update:
-    k_{t+1} = ( (1 - delta) * k_t + s * k_t**alpha ) / (1 + n) / (1 + g)
+    k_{t+1} = ((1 - delta) * k_t + s * k_t**alpha) / ((1 + n) * (1 + g))
     """
     k = np.zeros(T+1)
     y = np.zeros(T+1)
@@ -47,15 +39,12 @@ def simulate_solow(s, delta, n, g, alpha, k0, T=200):
         c[t] = (1 - s) * y[t]
     y[-1] = k[-1] ** alpha
     c[-1] = (1 - s) * y[-1]
-    df = pd.DataFrame({
-        'k': k, 'y': y, 'c': c
-    }, index=np.arange(T+1))
+    df = pd.DataFrame({'k': k, 'y': y, 'c': c}, index=np.arange(T+1))
     return df
 
 def golden_rule_alpha_dependent(alpha):
     """
     For Cobb-Douglas, golden-rule saving rate s_gr = alpha.
-    Returns s_gr.
     """
     return alpha
 
@@ -72,7 +61,6 @@ def solow_diagram(s, delta, n, g, alpha, k_grid=None):
     fig, ax = plt.subplots(figsize=(7,5))
     ax.plot(k_grid, invest, label=r"$s f(k)$", color="#1f77b4")
     ax.plot(k_grid, break_even, label=r"$(n+g+\delta)k$", color="#ff7f0e")
-    # steady state
     try:
         kss = steady_state_k(s, delta, n, g, alpha)
         ax.axvline(kss, linestyle='--', color='green', label=r"$k^*$")
@@ -100,7 +88,6 @@ def app():
         T = st.number_input("Simulation periods (T)", min_value=50, max_value=2000, value=200, step=10)
         k0 = st.number_input("Initial k0", min_value=1e-6, value=0.5, step=0.1, format="%.6f")
 
-    # Simulate
     df = simulate_solow(s, delta, n, g, alpha, k0, T=int(T))
     kss = steady_state_k(s, delta, n, g, alpha)
     sgr = golden_rule_alpha_dependent(alpha)
@@ -108,7 +95,6 @@ def app():
     st.subheader("Transition Dynamics")
     st.write(f"Steady-state k*: **{kss:.4f}** — Golden-rule saving rate s_gr = **{sgr:.3f}**")
 
-    # Time series plots
     fig, ax = plt.subplots(3,1, figsize=(8,9), sharex=True)
     ax[0].plot(df.index, df['k'], color="#66c2a5"); ax[0].set_ylabel("k_t")
     ax[1].plot(df.index, df['y'], color="#fc8d62"); ax[1].set_ylabel("y_t")
@@ -117,19 +103,12 @@ def app():
     ax[0].legend()
     st.pyplot(fig)
 
-    # Solow diagram
     fig2, kss_line = solow_diagram(s, delta, n, g, alpha)
     st.subheader("Solow Diagram")
     st.pyplot(fig2)
 
-    # Button: shock
     if st.button("Simulate sudden capital destruction (50% instantaneous loss)"):
-        k_shock = df.copy()
-        k_shock['k'] = k_shock['k'].values
-        k_shock.loc[1:, 'k'] = k_shock['k'].values
-        k_shock.loc[0, 'k'] = k_shock.loc[0, 'k'] * 0.5
-        # re-simulate from shocked k0
-        df2 = simulate_solow(s, delta, n, g, alpha, k_shock.loc[0,'k'], T=int(T))
+        df2 = simulate_solow(s, delta, n, g, alpha, k0 * 0.5, T=int(T))
         fig3, ax3 = plt.subplots(1,1, figsize=(8,3))
         ax3.plot(df['k'], label='Baseline k')
         ax3.plot(df2['k'], label='After shock k', linestyle='--')
@@ -139,7 +118,6 @@ def app():
         ax3.legend()
         st.pyplot(fig3)
 
-    # Intelligent summary
     st.markdown("### Intelligent Summary")
     last_k = df['k'].iloc[-1]
     reached = abs(last_k - kss) < 1e-3
@@ -147,3 +125,4 @@ def app():
         st.write(f"The economy converges close to steady state by period {int(T)} (k ≈ {last_k:.4f}, k* = {kss:.4f}).")
     else:
         st.write(f"The economy has not fully converged in {int(T)} periods (k_T = {last_k:.4f}, k* = {kss:.4f}). Changing s, n, g, or δ shifts k* as shown in the Solow diagram.")
+
