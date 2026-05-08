@@ -96,7 +96,7 @@ def app():
 
         transform = st.selectbox("Transformation", ["Level", "Log", "Log-diff (growth)", "Year-over-Year %"])
         df_t = transform_series(df, transform)
-       st.line_chart(df_t.ffill())
+        st.line_chart(df_t.ffill())
 
 
     with col2:
