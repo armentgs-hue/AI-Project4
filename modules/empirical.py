@@ -62,7 +62,7 @@ def app():
         start = st.date_input("Start date", value=pd.to_datetime("2000-01-01"))
         if source == "Demo (built-in)":
             # simple demo: US 10y yield proxy (constructed) and SP500
-            dates = pd.date_range(start=start, end=datetime.today(), freq='M')
+            dates = pd.date_range(start=start, end=datetime.today(), freq='ME')
             sp = pd.Series(1000 * (1 + 0.005) ** np.arange(len(dates)), index=dates, name="SP500")
             y10 = pd.Series(2 + 0.01 * np.sin(np.linspace(0, 10, len(dates))) , index=dates, name="T10Y")
             df = pd.concat([sp, y10], axis=1)
@@ -75,7 +75,7 @@ def app():
                     dfs.append(fetch_yfinance(t, start))
                 except Exception as e:
                     st.error(f"Failed to fetch {t}: {e}")
-            df = pd.concat(dfs, axis=1)
+            df = pd.concat(dfs, axis=1) if dfs else pd.DataFrame()
         else:
             series = st.text_input("FRED series (comma-separated)", value="GDP,UNRATE")
             series = [s.strip() for s in series.split(",")][:4]
@@ -85,7 +85,7 @@ def app():
                     dfs.append(fetch_fred(s, start))
                 except Exception as e:
                     st.error(f"FRED fetch failed for {s}: {e}")
-            df = pd.concat(dfs, axis=1)
+            df = pd.concat(dfs, axis=1) if dfs else pd.DataFrame()
 
         if df is None or df.empty:
             st.warning("No data available.")
